@@ -1,0 +1,26 @@
+name: gyroball
+options:
+  bundleIdPrefix: com.roni
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+targets:
+  gyroball:
+    type: application
+    platform: macOS
+    sources:
+      - path: gyroball
+        excludes:
+          - "*.entitlements"
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roni.gyroball
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        INFOPLIST_FILE: gyroball/Info.plist
+        CODE_SIGN_ENTITLEMENTS: gyroball/gyroball.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        ENABLE_HARDENED_RUNTIME: "NO"

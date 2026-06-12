@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:gyroball-monitor}",
+            "name": "Debug gyroball",
+            "target": "gyroball",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug gyroball"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:gyroball-monitor}",
+            "name": "Release gyroball",
+            "target": "gyroball",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release gyroball"
+        }
+    ]
+}
