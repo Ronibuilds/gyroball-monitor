@@ -1,0 +1,36 @@
+<UserControl x:Class="Gyroball.UI.Dashboard.SessionDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Gyroball.UI.Dashboard"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+
+            <!-- Header -->
+            <Grid Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock x:Name="DateText" FontSize="20" FontWeight="SemiBold"
+                               Foreground="{StaticResource PrimaryText}" />
+                    <TextBlock Text="Session" FontSize="13" Foreground="{StaticResource SecondaryText}" />
+                </StackPanel>
+                <Button x:Name="DeleteButton" Content="🗑 Delete" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Padding="12,6" Click="OnDelete"
+                        Background="#33FF453A" Foreground="#FF453A" BorderThickness="0" Cursor="Hand" />
+            </Grid>
+
+            <UniformGrid Rows="1" Margin="0,0,0,20">
+                <local:StatCard x:Name="TopCard" Title="Top speed" Glyph="&#xE945;" Margin="0,0,6,0" AccentBrush="#FF453A" />
+                <local:StatCard x:Name="AvgCard" Title="Average" Glyph="&#xE9D9;" Margin="6,0" AccentBrush="#0A84FF" />
+                <local:StatCard x:Name="RevsCard" Title="Revolutions" Glyph="&#xE72C;" Margin="6,0" AccentBrush="#34C759" />
+                <local:StatCard x:Name="DurationCard" Title="Duration" Glyph="&#xE823;" Margin="6,0,0,0" AccentBrush="#BF5AF2" />
+            </UniformGrid>
+
+            <TextBlock x:Name="ChartTitle" Text="Speed over time" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource PrimaryText}" Margin="0,0,0,10" />
+            <Border x:Name="ChartCard" CornerRadius="12" Padding="16"
+                    Background="#140A84FF" BorderThickness="1" BorderBrush="#240A84FF">
+                <lvc:CartesianChart x:Name="SessionChart" Height="220" TooltipPosition="Hidden" />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

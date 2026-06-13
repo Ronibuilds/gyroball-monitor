@@ -1,0 +1,146 @@
+<Window x:Class="Gyroball.UI.Widget.FloatingWidgetWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:widget="clr-namespace:Gyroball.UI.Widget"
+        Width="200"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Opacity="0"
+        Visibility="Collapsed">
+
+    <Window.Resources>
+        <!-- Small stat cell used in the expanded grid -->
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryText}" />
+        </Style>
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource TertiaryText}" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+        </Style>
+    </Window.Resources>
+
+    <!-- Card pinned to the bottom so it visually grows upward when expanded -->
+    <Border VerticalAlignment="Bottom" Margin="12"
+            CornerRadius="18" Background="#E61C1C1E" BorderBrush="#22FFFFFF" BorderThickness="1"
+            MouseLeftButtonDown="OnCardMouseDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="6" Opacity="0.45" Color="Black" />
+        </Border.Effect>
+
+        <StackPanel>
+            <!-- Compact section: RPM + label + progress -->
+            <Grid Height="96">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock HorizontalAlignment="Center" FontSize="48" FontWeight="UltraLight"
+                               FontFamily="Segoe UI">
+                        <TextBlock.Foreground>
+                            <MultiBinding Converter="{StaticResource ActiveZoneBrush}">
+                                <Binding Path="Live.IsActive" />
+                                <Binding Path="Live.Rpm" />
+                            </MultiBinding>
+                        </TextBlock.Foreground>
+                        <TextBlock.Text>
+                            <MultiBinding Converter="{StaticResource ActiveRpm}">
+                                <Binding Path="Live.IsActive" />
+                                <Binding Path="Live.Rpm" />
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+
+                    <TextBlock Text="RPM" HorizontalAlignment="Center" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TertiaryText}" Margin="0,2,0,6" />
+
+                    <ProgressBar Height="3" Margin="28,0" Background="#3A3A3C" BorderThickness="0"
+                                 Minimum="0" Maximum="{Binding ReferenceMax}" Value="{Binding Live.Rpm, Mode=OneWay}">
+                        <ProgressBar.Foreground>
+                            <MultiBinding Converter="{StaticResource ActiveZoneBrush}">
+                                <Binding Path="Live.IsActive" />
+                                <Binding Path="Live.Rpm" />
+                            </MultiBinding>
+                        </ProgressBar.Foreground>
+                    </ProgressBar>
+                </StackPanel>
+
+                <!-- Pin toggle, top-right, visible only when expanded -->
+                <ToggleButton x:Name="PinButton" HorizontalAlignment="Right" VerticalAlignment="Top"
+                              Margin="0,6,6,0" Width="22" Height="22" Cursor="Hand"
+                              Background="Transparent" BorderThickness="0"
+                              IsChecked="{Binding IsPinned, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Visibility="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                              ToolTip="Pin expanded">
+                    <TextBlock x:Name="PinGlyph" Text="📌" FontSize="11" />
+                </ToggleButton>
+            </Grid>
+
+            <!-- Expanded section -->
+            <StackPanel x:Name="ExpandedSection"
+                        Visibility="{Binding IsExpanded, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}">
+                <Separator Margin="16,0" Background="{StaticResource Separator}" />
+
+                <widget:RpmSparkline Height="56" Margin="14,10"
+                                     History="{Binding Live.RpmHistory}">
+                    <widget:RpmSparkline.Tint>
+                        <MultiBinding Converter="{StaticResource ActiveZoneBrush}">
+                            <Binding Path="Live.IsActive" />
+                            <Binding Path="Live.Rpm" />
+                        </MultiBinding>
+                    </widget:RpmSparkline.Tint>
+                </widget:RpmSparkline>
+
+                <Separator Margin="16,0" Background="{StaticResource Separator}" />
+
+                <Grid Margin="0,9">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding Live.TopSpeed, Converter={StaticResource Rpm}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="TOP" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding Live.AverageRpm, Converter={StaticResource Rpm}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="AVG" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding Live.TotalRevolutions, Converter={StaticResource Revs}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="REVS" />
+                    </StackPanel>
+                </Grid>
+
+                <Separator Margin="16,0" Background="{StaticResource Separator}" />
+
+                <Grid Margin="0,9">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding Live.ActiveSeconds, Converter={StaticResource Time}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="TIME" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding TodayRevolutionsCombined, Converter={StaticResource Revs}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="DAY REVS" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource StatValue}" Text="{Binding TodaySecondsCombined, Converter={StaticResource Time}}" />
+                        <TextBlock Style="{StaticResource StatLabel}" Text="DAY TIME" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="★ NEW BEST" HorizontalAlignment="Center" FontSize="9" FontWeight="Bold"
+                           Foreground="{StaticResource AccentYellow}" Margin="0,0,0,8"
+                           Visibility="{Binding IsNewBest, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

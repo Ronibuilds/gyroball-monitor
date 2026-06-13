@@ -1,0 +1,82 @@
+<UserControl x:Class="Gyroball.UI.Dashboard.OverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Gyroball.UI.Dashboard"
+             xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+
+            <!-- Status header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                         Fill="{Binding StatusLevel, Converter={StaticResource StatusBrush}}" />
+                <TextBlock Text="{Binding StatusText}" Margin="8,0,0,0" VerticalAlignment="Center"
+                           FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource SecondaryText}" />
+            </StackPanel>
+
+            <!-- Live card -->
+            <Border x:Name="LiveCard" CornerRadius="12" Padding="20" Margin="0,0,0,20"
+                    Background="#1FFFFFFF" BorderThickness="1" BorderBrush="#22FFFFFF"
+                    Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="190" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock HorizontalAlignment="Center" FontSize="56" FontWeight="UltraLight"
+                                   Text="{Binding Live.Rpm, Converter={StaticResource Rpm}}">
+                            <TextBlock.Foreground>
+                                <MultiBinding Converter="{StaticResource ActiveZoneBrush}">
+                                    <Binding Path="Live.IsActive" />
+                                    <Binding Path="Live.Rpm" />
+                                </MultiBinding>
+                            </TextBlock.Foreground>
+                        </TextBlock>
+                        <TextBlock Text="RPM" HorizontalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TertiaryText}" />
+                    </StackPanel>
+                    <lvc:CartesianChart x:Name="LiveChart" Grid.Column="1" Height="110"
+                                        TooltipPosition="Hidden" />
+                </Grid>
+            </Border>
+
+            <!-- Today -->
+            <TextBlock Text="Today" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource PrimaryText}" Margin="0,0,0,10" />
+            <UniformGrid Rows="1" Margin="0,0,0,20">
+                <local:StatCard Title="Revolutions" Glyph="&#xE72C;" Margin="0,0,6,0"
+                                AccentBrush="#34C759"
+                                Value="{Binding TodayRevolutionsCombined, Converter={StaticResource Revs}}" />
+                <local:StatCard Title="Active time" Glyph="&#xE823;" Margin="6,0"
+                                AccentBrush="#0A84FF"
+                                Value="{Binding TodaySecondsCombined, Converter={StaticResource Time}}" />
+                <local:StatCard Title="Sessions" Glyph="&#xE8FD;" Margin="6,0,0,0"
+                                AccentBrush="#BF5AF2"
+                                Value="{Binding Store.TodaySessionCount}" />
+            </UniformGrid>
+
+            <!-- Last 14 days -->
+            <TextBlock Text="Last 14 days" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource PrimaryText}" Margin="0,0,0,10" />
+            <Border CornerRadius="12" Padding="16" Margin="0,0,0,20"
+                    Background="#140A84FF" BorderThickness="1" BorderBrush="#240A84FF">
+                <lvc:CartesianChart x:Name="DailyChart" Height="160" TooltipPosition="Hidden" />
+            </Border>
+
+            <!-- All time -->
+            <TextBlock Text="All time" FontSize="17" FontWeight="SemiBold"
+                       Foreground="{StaticResource PrimaryText}" Margin="0,0,0,10" />
+            <UniformGrid Rows="1">
+                <local:StatCard Title="Top speed" Glyph="&#xE945;" Margin="0,0,6,0" AccentBrush="#FF453A"
+                                Value="{Binding AllTimeTopRpmCombined, Converter={StaticResource Rpm}}" />
+                <local:StatCard Title="Total revs" Glyph="&#xE72C;" Margin="6,0" AccentBrush="#34C759"
+                                Value="{Binding Store.TotalRevolutions, Converter={StaticResource Revs}}" />
+                <local:StatCard Title="Total time" Glyph="&#xE916;" Margin="6,0" AccentBrush="#0A84FF"
+                                Value="{Binding Store.TotalSeconds, Converter={StaticResource Time}}" />
+                <local:StatCard x:Name="LongestCard" Title="Longest session" Glyph="&#xE735;" Margin="6,0,0,0"
+                                AccentBrush="#FF9F0A" Value="—" />
+            </UniformGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

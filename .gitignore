@@ -228,3 +228,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 dist/
+
+# .NET / Windows port (windows/)
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/

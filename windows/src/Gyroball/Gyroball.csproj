@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The WPF + WinRT application. Targets net10.0-windows10.0.19041.0:
+      * -windows enables WPF (UseWPF).
+      * 10.0.19041.0 projects the WinRT Bluetooth LE APIs
+        (Windows.Devices.Bluetooth) used by BleManager.
+    Builds and runs on Windows 10 build 19041+ / Windows 11.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Gyroball</RootNamespace>
+    <AssemblyName>Gyroball</AssemblyName>
+    <ApplicationIcon>Assets\Gyroball.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.2.0" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc5.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Gyroball.Core\Gyroball.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Gyroball.ico" />
+  </ItemGroup>
+
+</Project>
