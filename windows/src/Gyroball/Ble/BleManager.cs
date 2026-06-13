@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
@@ -16,10 +15,16 @@ namespace Gyroball.Ble;
 ///
 /// The ball is battery-free: its radio drops below ~1700 RPM and re-advertises on
 /// the next spin-up, so the watcher stays armed and we reconnect automatically.
+///
+/// IMPORTANT — WinRT vs CoreBluetooth advertisement model: CoreBluetooth merges the
+/// ADV_IND and SCAN_RSP packets into one peripheral with a unified name. WinRT raises
+/// a separate Received event per packet, and the name and the service UUID usually
+/// arrive in DIFFERENT packets. So we must NOT require both in one packet — we scan
+/// unfiltered and match if the packet carries FFF0 OR is named "NSD Workout", then
+/// connect by the (stable) Bluetooth address.
 /// </summary>
 public sealed class BleManager : IDisposable
 {
-    // 16-bit GATT UUIDs expand against the Bluetooth base UUID.
     private static readonly Guid ServiceUuid   = BluetoothUuidHelper.FromShortId(0xFFF0);
     private static readonly Guid TelemetryUuid = BluetoothUuidHelper.FromShortId(0xFFF4);
     private static readonly Guid ExtraService  = BluetoothUuidHelper.FromShortId(0xFEBA);
@@ -30,8 +35,10 @@ public sealed class BleManager : IDisposable
 
     private BluetoothLEAdvertisementWatcher? _watcher;
     private BluetoothLEDevice? _device;
+    private readonly List<GattDeviceService> _services = new();
     private readonly List<GattCharacteristic> _subscribed = new();
     private bool _connecting;
+    private int _packetCount;
 
     public BleManager(LiveTelemetry live, Action<Action> post)
     {
@@ -39,15 +46,32 @@ public sealed class BleManager : IDisposable
         _post = post;
     }
 
-    public void Start()
+    public async void Start()
     {
+        BleLog.Append("=== Gyroball BLE start ===");
+        await LogAdapterAsync();
+
         _watcher = new BluetoothLEAdvertisementWatcher
         {
-            ScanningMode = BluetoothLEScanningMode.Active
+            ScanningMode = BluetoothLEScanningMode.Active   // active = also pull scan responses (where the name lives)
         };
-        _watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(ServiceUuid);
+        // NOTE: deliberately NO advertisement filter — see class remarks. We match in code.
         _watcher.Received += OnAdvertisementReceived;
+        _watcher.Stopped += (_, e) => BleLog.Append($"watcher stopped: {e.Error}");
         _watcher.Start();
+        BleLog.Append($"watcher started (status={_watcher.Status})");
+    }
+
+    private static async Task LogAdapterAsync()
+    {
+        try
+        {
+            var adapter = await BluetoothAdapter.GetDefaultAsync();
+            if (adapter is null) { BleLog.Append("WARNING: no Bluetooth adapter found"); return; }
+            BleLog.Append($"adapter: LE supported={adapter.IsLowEnergySupported}, " +
+                          $"central role={adapter.IsCentralRoleSupported}");
+        }
+        catch (Exception ex) { BleLog.Append($"adapter query failed: {ex.Message}"); }
     }
 
     private void RestartScan()
@@ -55,34 +79,62 @@ public sealed class BleManager : IDisposable
         try
         {
             if (_watcher is { Status: BluetoothLEAdvertisementWatcherStatus.Stopped })
+            {
                 _watcher.Start();
+                BleLog.Append("watcher restarted");
+            }
         }
-        catch (Exception ex) { Debug.WriteLine($"[BLE] restart scan failed: {ex.Message}"); }
+        catch (Exception ex) { BleLog.Append($"restart scan failed: {ex.Message}"); }
     }
+
+    private static bool Matches(BluetoothLEAdvertisementReceivedEventArgs args) =>
+        args.Advertisement.LocalName == DeviceName ||
+        args.Advertisement.ServiceUuids.Contains(ServiceUuid);
 
     private async void OnAdvertisementReceived(
         BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args)
     {
         if (_connecting || _device is not null) return;
-        if (args.Advertisement.LocalName != DeviceName) return;
+        if (!Matches(args)) return;
 
         _connecting = true;
+        var addr = FormatAddress(args.BluetoothAddress);
+        var uuids = string.Join(",", args.Advertisement.ServiceUuids);
+        BleLog.Append($"MATCH addr={addr} name='{args.Advertisement.LocalName}' rssi={args.RawSignalStrengthInDBm} uuids=[{uuids}]");
         sender.Stop();
 
         try
         {
             var device = await BluetoothLEDevice.FromBluetoothAddressAsync(args.BluetoothAddress);
-            if (device is null) { _connecting = false; RestartScan(); return; }
+            if (device is null)
+            {
+                BleLog.Append("FromBluetoothAddressAsync returned null — cannot open device");
+                _connecting = false;
+                RestartScan();
+                return;
+            }
 
             _device = device;
             device.ConnectionStatusChanged += OnConnectionStatusChanged;
+            BleLog.Append($"opened device '{device.Name}' status={device.ConnectionStatus}");
+
             await DiscoverAsync(device);
 
-            _post(() => _live.SetConnected(true));
+            if (_subscribed.Count > 0)
+            {
+                _post(() => _live.SetConnected(true));
+                BleLog.Append($"connected — {_subscribed.Count} notification(s) active");
+            }
+            else
+            {
+                BleLog.Append("ERROR: no characteristics subscribed — connection not usable; retrying scan");
+                Cleanup();
+                RestartScan();
+            }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[BLE] connect failed: {ex.Message}");
+            BleLog.Append($"connect failed: {ex.GetType().Name}: {ex.Message}");
             Cleanup();
             RestartScan();
         }
@@ -102,12 +154,15 @@ public sealed class BleManager : IDisposable
 
     private async Task SubscribeAsync(BluetoothLEDevice device, Guid service, Guid characteristic)
     {
-        var svc = await device.GetGattServicesForUuidAsync(service);
+        var svc = await device.GetGattServicesForUuidAsync(service, BluetoothCacheMode.Uncached);
+        BleLog.Append($"service {Short(service)}: status={svc.Status} count={svc.Services.Count}");
         if (svc.Status != GattCommunicationStatus.Success) return;
 
         foreach (var s in svc.Services)
         {
-            var chars = await s.GetCharacteristicsForUuidAsync(characteristic);
+            _services.Add(s);
+            var chars = await s.GetCharacteristicsForUuidAsync(characteristic, BluetoothCacheMode.Uncached);
+            BleLog.Append($"  char {Short(characteristic)}: status={chars.Status} count={chars.Characteristics.Count}");
             if (chars.Status != GattCommunicationStatus.Success) continue;
             foreach (var c in chars.Characteristics)
                 await EnableNotify(c);
@@ -116,12 +171,14 @@ public sealed class BleManager : IDisposable
 
     private async Task SubscribeAllNotifiable(BluetoothLEDevice device, Guid service)
     {
-        var svc = await device.GetGattServicesForUuidAsync(service);
+        var svc = await device.GetGattServicesForUuidAsync(service, BluetoothCacheMode.Uncached);
+        BleLog.Append($"service {Short(service)}: status={svc.Status} count={svc.Services.Count}");
         if (svc.Status != GattCommunicationStatus.Success) return;
 
         foreach (var s in svc.Services)
         {
-            var chars = await s.GetCharacteristicsAsync();
+            _services.Add(s);
+            var chars = await s.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
             if (chars.Status != GattCommunicationStatus.Success) continue;
             foreach (var c in chars.Characteristics)
             {
@@ -141,11 +198,19 @@ public sealed class BleManager : IDisposable
             ? GattClientCharacteristicConfigurationDescriptorValue.Notify
             : GattClientCharacteristicConfigurationDescriptorValue.Indicate;
 
-        var status = await c.WriteClientCharacteristicConfigurationDescriptorAsync(value);
-        if (status != GattCommunicationStatus.Success) return;
+        try
+        {
+            var status = await c.WriteClientCharacteristicConfigurationDescriptorAsync(value);
+            BleLog.Append($"    notify {Short(c.Uuid)}: {status}");
+            if (status != GattCommunicationStatus.Success) return;
 
-        c.ValueChanged += OnCharacteristicValueChanged;
-        _subscribed.Add(c);
+            c.ValueChanged += OnCharacteristicValueChanged;
+            _subscribed.Add(c);
+        }
+        catch (Exception ex)
+        {
+            BleLog.Append($"    notify {Short(c.Uuid)} failed: {ex.Message}");
+        }
     }
 
     private void OnCharacteristicValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
@@ -154,12 +219,17 @@ public sealed class BleManager : IDisposable
         RawLog.Append(sender.Uuid, data);
 
         if (sender.Uuid != TelemetryUuid) return;
+
+        if (++_packetCount <= 3)
+            BleLog.Append($"telemetry packet #{_packetCount}: {Convert.ToHexString(data)}");
+
         var now = DateTime.Now;
         _post(() => _live.HandlePacket(data, now));
     }
 
     private void OnConnectionStatusChanged(BluetoothLEDevice sender, object args)
     {
+        BleLog.Append($"connection status → {sender.ConnectionStatus}");
         if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
         {
             _post(() => _live.SetConnected(false));
@@ -182,13 +252,22 @@ public sealed class BleManager : IDisposable
             c.ValueChanged -= OnCharacteristicValueChanged;
         _subscribed.Clear();
 
+        foreach (var s in _services) s.Dispose();
+        _services.Clear();
+
         if (_device is not null)
         {
             _device.ConnectionStatusChanged -= OnConnectionStatusChanged;
             _device.Dispose();
             _device = null;
         }
+        _packetCount = 0;
     }
+
+    private static string Short(Guid g) => g.ToString().Substring(4, 4).ToUpperInvariant();
+
+    private static string FormatAddress(ulong addr) =>
+        string.Join(":", BitConverter.GetBytes(addr).Take(6).Reverse().Select(b => b.ToString("X2")));
 
     public void Dispose()
     {
@@ -206,26 +285,46 @@ public sealed class BleManager : IDisposable
 internal static class RawLog
 {
     private static readonly object Gate = new();
-    private static readonly string Path = BuildPath();
-
-    private static string BuildPath()
-    {
-        var dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Gyroball", "Logs");
-        Directory.CreateDirectory(dir);
-        return System.IO.Path.Combine(dir, "raw.log");
-    }
+    private static readonly string Path = LogPaths.File("raw.log");
 
     public static void Append(Guid uuid, byte[] data)
     {
         try
         {
-            var hex = Convert.ToHexString(data);
-            var spaced = string.Join(' ', Enumerable.Range(0, data.Length).Select(i => hex.Substring(i * 2, 2)));
-            var line = $"{DateTime.Now:HH:mm:ss.fff} {uuid} {spaced}{Environment.NewLine}";
+            var hex = data.Length == 0 ? "" : string.Join(' ',
+                Enumerable.Range(0, data.Length).Select(i => data[i].ToString("X2")));
+            var line = $"{DateTime.Now:HH:mm:ss.fff} {uuid} {hex}{Environment.NewLine}";
             lock (Gate) File.AppendAllText(Path, line);
         }
         catch { /* logging is best-effort */ }
+    }
+}
+
+/// <summary>Human-readable connection diagnostics at %LOCALAPPDATA%\Gyroball\Logs\ble.log.</summary>
+internal static class BleLog
+{
+    private static readonly object Gate = new();
+    private static readonly string Path = LogPaths.File("ble.log");
+
+    public static void Append(string message)
+    {
+        try
+        {
+            var line = $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}";
+            lock (Gate) File.AppendAllText(Path, line);
+        }
+        catch { /* best-effort */ }
+    }
+}
+
+internal static class LogPaths
+{
+    public static string File(string name)
+    {
+        var dir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Gyroball", "Logs");
+        Directory.CreateDirectory(dir);
+        return System.IO.Path.Combine(dir, name);
     }
 }
