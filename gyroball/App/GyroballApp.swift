@@ -8,9 +8,11 @@ struct GyroballApp: App {
         MenuBarExtra("Gyroball", systemImage: "gyroscope") {
             MenuContent(
                 ble: appDelegate.ble,
+                engine: appDelegate.engine,
+                goalStore: appDelegate.goalStore,
                 store: appDelegate.store,
                 openDashboard: { appDelegate.openDashboard() },
-                resetSession: { appDelegate.tracker.discard() })
+                resetSet: { appDelegate.engine.resetCurrentSet(keepingCounter: true) })
         }
         .menuBarExtraStyle(.menu)
     }

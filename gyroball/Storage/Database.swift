@@ -8,6 +8,20 @@ final class Database {
     private var db: OpaquePointer?
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    /// The single canonical on-disk location for app data, shared by every
+    /// build. It lives in Application Support — outside the app bundle and the
+    /// git repository — so data accumulates and survives across rebuilds.
+    static let storeURL: URL = {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory,
+                                           in: .userDomainMask)[0]
+            .appendingPathComponent("Gyroball", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("gyroball.sqlite")
+    }()
+
+    /// Opens the shared application database.
+    static func openShared() -> Database? { Database(path: storeURL.path) }
+
     init?(path: String) {
         guard sqlite3_open(path, &db) == SQLITE_OK else {
             sqlite3_close(db)

@@ -234,3 +234,6 @@ dist/
 [Oo]bj/
 *.user
 .vs/
+
+# Brainstorming visual-companion mockups (throwaway)
+.superpowers/

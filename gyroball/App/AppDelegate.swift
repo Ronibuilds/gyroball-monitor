@@ -4,20 +4,18 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     let ble = BLEManager()
-    let store = SessionStore()
-    private(set) var tracker: SessionTracker!
+    let store = TrainingStore()
+    let goalStore = GoalStore()
+    // Lazy so it exists the moment the scene body (MenuBarExtra) is first
+    // evaluated, which SwiftUI may do before applicationDidFinishLaunching.
+    private(set) lazy var engine = WorkoutEngine(ble: ble, store: store, goalStore: goalStore)
     private(set) var panelController: FloatingPanelController?
     private var dashboardWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        tracker = SessionTracker(ble: ble, store: store)
-        panelController = FloatingPanelController(ble: ble, store: store)
+        panelController = FloatingPanelController(ble: ble, engine: engine, goalStore: goalStore)
         openDashboard()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        tracker?.finalize()
     }
 
     // Double-clicking the app in Finder/Spotlight while it's already running.
@@ -31,16 +29,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if dashboardWindow == nil {
             let window = NSWindow(
                 contentViewController: NSHostingController(
-                    rootView: DashboardView(ble: ble, store: store)))
+                    rootView: DashboardView(ble: ble, engine: engine,
+                                            goalStore: goalStore, store: store)))
             window.title = "Gyroball"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 920, height: 600))
+            window.setContentSize(NSSize(width: 960, height: 640))
             window.center()
             window.isReleasedWhenClosed = false
             window.delegate = self
             dashboardWindow = window
         }
-        // Show in the Dock and app switcher while the dashboard is open.
         NSApp.setActivationPolicy(.regular)
         dashboardWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

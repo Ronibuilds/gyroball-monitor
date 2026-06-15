@@ -4,12 +4,13 @@ import Combine
 
 final class FloatingPanelController {
 
-    static let compactSize  = CGSize(width: 200, height: 122)
-    static let expandedSize = CGSize(width: 200, height: 330)
+    static let compactSize  = CGSize(width: 240, height: 176)
+    static let expandedSize = CGSize(width: 240, height: 384)
     static let margin: CGFloat = 20
 
     private let ble: BLEManager
-    private let store: SessionStore
+    private let engine: WorkoutEngine
+    private let goalStore: GoalStore
     private let panelState = PanelState()
     private var panel: FloatingPanel?
     private var cancellables: Set<AnyCancellable> = []
@@ -17,9 +18,10 @@ final class FloatingPanelController {
     private var hoverTimer: Timer?
     private var hoverExitedAt: Date?
 
-    init(ble: BLEManager, store: SessionStore) {
+    init(ble: BLEManager, engine: WorkoutEngine, goalStore: GoalStore) {
         self.ble = ble
-        self.store = store
+        self.engine = engine
+        self.goalStore = goalStore
         panelState.isPinned = UserDefaults.standard.bool(forKey: "widget.pinned")
         buildPanel()
         observeBLEState()
@@ -33,7 +35,8 @@ final class FloatingPanelController {
         let rect  = NSRect(origin: .zero, size: Self.compactSize)
         let panel = FloatingPanel(contentRect: rect)
 
-        let view    = FloatingPanelView(ble: ble, store: store, panelState: panelState)
+        let view    = FloatingPanelView(ble: ble, engine: engine,
+                                        goalStore: goalStore, panelState: panelState)
         let hosting = NSHostingView(rootView: view)
         hosting.frame = rect
         hosting.autoresizingMask = [.width, .height]
