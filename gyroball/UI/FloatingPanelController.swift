@@ -27,6 +27,10 @@ final class FloatingPanelController {
         observeBLEState()
         observeDragging()
         observePinning()
+
+        // Pinned widgets are persistent: show at launch even before any BLE
+        // connection, so the panel survives across restarts and device power-offs.
+        if panelState.isPinned { show() }
     }
 
     // MARK: - Setup
@@ -88,7 +92,14 @@ final class FloatingPanelController {
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] connected in
-                connected ? self?.show() : self?.hide()
+                guard let self else { return }
+                if connected {
+                    self.show()                      // live data arriving
+                } else if !self.panelState.isPinned {
+                    self.hide()                      // unpinned: transient, hide on disconnect
+                }
+                // Pinned + disconnected: stay on screen showing the last-known /
+                // idle state. The view falls back to "—" via telemetry.isActive.
             }
             .store(in: &cancellables)
     }

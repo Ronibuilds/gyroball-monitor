@@ -10,9 +10,10 @@ CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 
 echo "→ Bundling…"
-mkdir -p "$MACOS"
+mkdir -p "$MACOS" "$CONTENTS/Resources"
 cp "$BINARY" "$MACOS/gyroball"
 cp "gyroball/Info.plist" "$CONTENTS/Info.plist"
+cp "assets/Gyroball.icns" "$CONTENTS/Resources/Gyroball.icns"
 
 echo "→ Signing…"
 codesign --force --sign - --entitlements "gyroball/gyroball.entitlements" "$APP"

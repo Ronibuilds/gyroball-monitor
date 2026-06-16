@@ -76,10 +76,69 @@ enum Fmt {
     }
 }
 
+// MARK: - Absolute RPM zones (the classic rev-counter palette)
+//
+// Distinct from the target-relative palette above: zones describe your absolute
+// RPM class (so 10k still reads "red / way up" regardless of the goal). Used by
+// the rev-counter bands and the RPM-distribution histogram. The target-relative
+// palette stays the home for "am I at goal" on RPM values.
+extension Fmt {
+
+    enum Zone: CaseIterable { case warmup, steady, hard, intense, max }
+
+    /// Exclusive upper bound of each zone; `.max` is open-ended (capped at the
+    /// gauge's maxRPM when drawing).
+    static let zoneUpperBounds: [(zone: Zone, upper: Double)] = [
+        (.warmup,  3500),
+        (.steady,  4500),
+        (.hard,    6000),
+        (.intense, 7000),
+        (.max,     .greatestFiniteMagnitude),
+    ]
+
+    static func zone(_ rpm: Double) -> Zone {
+        switch rpm {
+        case ..<3500: return .warmup
+        case ..<4500: return .steady
+        case ..<6000: return .hard
+        case ..<7000: return .intense
+        default:      return .max
+        }
+    }
+
+    static func zoneColor(_ rpm: Double) -> Color { color(for: zone(rpm)) }
+
+    static func color(for zone: Zone) -> Color {
+        switch zone {
+        case .warmup:  return Theme.green
+        case .steady:  return Theme.blue
+        case .hard:    return Theme.yellow
+        case .intense: return Theme.orange
+        case .max:     return Theme.red
+        }
+    }
+
+    /// Contiguous [lo, hi] RPM ranges with their color, clamped to `maxRPM`.
+    static func zoneBands(maxRPM: Double) -> [(range: ClosedRange<Double>, color: Color)] {
+        var bands: [(ClosedRange<Double>, Color)] = []
+        var lo = 0.0
+        for (zone, upper) in zoneUpperBounds {
+            let hi = Swift.min(upper, maxRPM)
+            if hi > lo { bands.append((lo...hi, color(for: zone))) }
+            lo = hi
+            if lo >= maxRPM { break }
+        }
+        return bands
+    }
+}
+
 /// Central palette so the widget and dashboard share one identity.
 enum Theme {
-    static let green = Color(red: 0.24, green: 0.86, blue: 0.52)   // on-target / success
-    static let blue  = Color(red: 0.36, green: 0.62, blue: 1.00)   // time / accent
-    static let track = Color.white.opacity(0.10)                   // empty progress track
+    static let green  = Color(red: 0.24, green: 0.86, blue: 0.52)  // on-target / success / warmup
+    static let blue   = Color(red: 0.36, green: 0.62, blue: 1.00)  // time / accent / steady
+    static let yellow = Color(red: 0.96, green: 0.77, blue: 0.26)  // hard zone
+    static let orange = Color(red: 0.96, green: 0.58, blue: 0.27)  // intense zone
+    static let red    = Color(red: 0.96, green: 0.34, blue: 0.29)  // max zone
+    static let track  = Color.white.opacity(0.10)                  // empty progress track
     static let hairline = Color.white.opacity(0.08)
 }

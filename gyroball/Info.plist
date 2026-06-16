@@ -12,6 +12,8 @@
     <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>Gyroball</string>
+    <key>CFBundleIconName</key>
+    <string>Gyroball</string>
     <key>CFBundleIdentifier</key>
     <string>com.roni.gyroball</string>
     <key>CFBundleVersion</key>
